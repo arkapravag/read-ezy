@@ -56,31 +56,31 @@ from pypdf.generic import (ArrayObject, ByteStringObject, ContentStream,
                            DecodedStreamObject, FloatObject, NameObject,
                            NumberObject, StreamObject)
 
-__version__ = "2.0.0"
+__version__ = "2.1.0"
 
 # Themes: [c1, c2, c3, c4, background]
 STYLES = {
     "pdf": {
-        "bright":   ["#000000", "#0000FF", "#000000", "#FF0500", "#FFFFFF"],
-        "dark":     ["#000000", "#00057F", "#000000", "#970000", "#FFFFFF"],
-        "blues":    ["#000000", "#0000FF", "#000000", "#840DD2", "#FFFFFF"],
-        "gray":     ["#000000", "#666666", "#000000", "#666666", "#FFFFFF"],
-        "inverted": ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+        "ocean":     ["#000000", "#1A5FD0", "#000000", "#D0461A", "#FFFFFF"],
+        "forest":    ["#000000", "#127A5A", "#000000", "#8A3FB0", "#FFFFFF"],
+        "ink":       ["#000000", "#283593", "#000000", "#7B1F3A", "#FFFFFF"],
+        "slate":     ["#000000", "#5A6872", "#000000", "#5A6872", "#FFFFFF"],
+        "midnight":  ["#F0F0F0", "#6CB4FF", "#F0F0F0", "#F2A65A", "#121212"],
+        "moonlight": ["#F0F0F0", "#8C99A3", "#F0F0F0", "#8C99A3", "#121212"],
     },
     "web": {
-        "bright":      ["#000000", "#0419ff", "#000000", "#b10202", "#FBFBFB"],
-        "dark":        ["#000000", "#000676", "#000000", "#5e0200", "#FBFBFB"],
-        "blues":       ["#000000", "#0000FF", "#000000", "#840DD2", "#FBFBFB"],
-        "gray":        ["#000000", "#666666", "#000000", "#666666", "#FBFBFB"],
-        "night_gray":  ["#FBFBFB", "#666666", "#FBFBFB", "#666666", "#000000"],
-        "night_blues": ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+        "ocean":     ["#000000", "#1A5FD0", "#000000", "#D0461A", "#FAF9F6"],
+        "forest":    ["#000000", "#127A5A", "#000000", "#8A3FB0", "#FAF9F6"],
+        "ink":       ["#000000", "#283593", "#000000", "#7B1F3A", "#FAF9F6"],
+        "slate":     ["#000000", "#5A6872", "#000000", "#5A6872", "#FAF9F6"],
+        "midnight":  ["#F0F0F0", "#6CB4FF", "#F0F0F0", "#F2A65A", "#121212"],
+        "moonlight": ["#F0F0F0", "#8C99A3", "#F0F0F0", "#8C99A3", "#121212"],
     },
 }
-CUSTOM_DEFAULT = ["#000000", "#0000FF", "#000000", "#FF0500", "#FFFFFF"]
-DEFAULT_STYLE, DEFAULT_THEME = "pdf", "bright"
+CUSTOM_DEFAULT = ["#000000", "#1A5FD0", "#000000", "#D0461A", "#FFFFFF"]
+DEFAULT_STYLE, DEFAULT_THEME = "pdf", "ocean"
 
 NUM_COLORS = 4
-PI_APPROX = 3.1415
 PDF_DPI = 150                 # canvas resolution used for positions
 PDF_NEW_LINE_DX = 75          # recorded canvas units
 FONT_SCALE_MIN, FONT_SCALE_MAX = 16, 100
@@ -105,6 +105,15 @@ def is_dark(rgb):
     return 0.2126 * r + 0.7152 * g + 0.0722 * b < 120
 
 
+def _is_blank(ch):
+    """True for real whitespace.  Control characters (e.g. an unmapped
+    ligature in a font's built-in encoding) are drawn glyphs, not blanks."""
+    return ch != "" and all(c in _BLANKS for c in ch)
+
+
+_BLANKS = set(" \t\n\r\u00a0\u1680\u202f\u205f\u3000") | {chr(c) for c in range(0x2000, 0x200b)}
+
+
 def js_round(v):
     return math.floor(v + 0.5)    # Math.round semantics (.5 rounds up)
 
@@ -115,9 +124,9 @@ def gradient_color(phase, x, x_min, x_max, theme_rgb):
     start, end = (c1, c2) if phase < 2 else (c3, c4)
     if x_max == x_min:
         return None
-    k = PI_APPROX / (x_max - x_min) * (x - x_min)
+    k = math.pi / (x_max - x_min) * (x - x_min)
     if phase % 2 == 0:
-        v = (math.cos(k - PI_APPROX) + 1) / 2      # start -> end
+        v = (math.cos(k - math.pi) + 1) / 2      # start -> end
     else:
         v = (math.cos(k) + 1) / 2                  # end -> start
     return tuple(js_round((e - s) * v + s) for s, e in zip(start, end))
@@ -701,7 +710,7 @@ def pdf_style_colors(glyphs, theme_rgb):
         lines[idx][1] = prev
     out = []
     for g in glyphs:                                   # colour along each line
-        if not g.ch.strip() and g.ch != "":
+        if _is_blank(g.ch):
             out.append(None)                           # whitespace
             continue
         xmin, xmax, phase = lines[line_map[(g.ch, g.rx, g.ry)]]
@@ -729,7 +738,7 @@ class WebColorer:
             line.clear()
 
         for i, g in enumerate(glyphs):
-            if not g.ch.strip() and g.ch != "":
+            if _is_blank(g.ch):
                 continue                               # spaces don't take part
             if xlast is None:
                 xfirst = xlast = g.wx

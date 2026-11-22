@@ -7,11 +7,11 @@ readezy_core.py (pure Python, pypdf only), shared with the web app in docs/.
 Usage
 -----
     pip install -r requirements.txt
-    python readezy.py input.pdf output.pdf                      # pdf style, bright
-    python readezy.py input.pdf output.pdf --theme blues
-    python readezy.py input.pdf output.pdf --theme inverted
-    python readezy.py input.pdf output.pdf --style web --theme night_blues
-    python readezy.py input.pdf output.pdf --custom "#000000" "#0000FF" "#000000" "#FF0500" "#FFFFFF"
+    python readezy.py input.pdf output.pdf                      # pdf style, ocean
+    python readezy.py input.pdf output.pdf --theme forest
+    python readezy.py input.pdf output.pdf --theme midnight
+    python readezy.py input.pdf output.pdf --style web --theme moonlight
+    python readezy.py input.pdf output.pdf --custom "#000000" "#1A5FD0" "#000000" "#D0461A" "#FFFFFF"
     python readezy.py input.pdf out_folder --all-themes         # one PDF per theme
     python readezy.py --list-themes
 """
@@ -45,7 +45,7 @@ def main():
     cyc.add_argument("--continuous", dest="restart", action="store_false",
                      help="continue the colour cycle across pages (default for --style web)")
     ap.add_argument("--plain-paper", action="store_true",
-                    help="web style: white paper instead of the theme's #FBFBFB")
+                    help="web style: white paper instead of the theme's #FAF9F6")
     ap.add_argument("--list-themes", action="store_true", help="show themes and exit")
     ap.add_argument("--version", action="version", version=f"ReadEzy {core.__version__}")
     a = ap.parse_args()

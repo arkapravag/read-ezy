@@ -172,6 +172,7 @@
     <p id="self-dl-row"><a href="index.html" id="self-dl" download="ReadEzy.html">Download this app</a> as a single
        file and open it in your browser any time. It needs an internet connection to load the converter.</p>
     <p>Source and command-line version: <a href="https://github.com/arkapravag/read-ezy">github.com/arkapravag/read-ezy</a>.</p>
+    <p>MIT License. Provided as is, without warranty of any kind.</p>
   </footer>
 </main>
 
@@ -186,19 +187,20 @@ const CORE_SOURCE = /*__READEZY_CORE__*/"";
 
 const STYLES = {
   pdf: {
-    bright:   ["#000000", "#0000FF", "#000000", "#FF0500", "#FFFFFF"],
-    dark:     ["#000000", "#00057F", "#000000", "#970000", "#FFFFFF"],
-    blues:    ["#000000", "#0000FF", "#000000", "#840DD2", "#FFFFFF"],
-    gray:     ["#000000", "#666666", "#000000", "#666666", "#FFFFFF"],
-    inverted: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+    ocean:       ["#000000", "#1A5FD0", "#000000", "#D0461A", "#FFFFFF"],
+    forest:      ["#000000", "#127A5A", "#000000", "#8A3FB0", "#FFFFFF"],
+    ink:         ["#000000", "#283593", "#000000", "#7B1F3A", "#FFFFFF"],
+    slate:       ["#000000", "#5A6872", "#000000", "#5A6872", "#FFFFFF"],
+    midnight:    ["#F0F0F0", "#6CB4FF", "#F0F0F0", "#F2A65A", "#121212"],
+    moonlight:   ["#F0F0F0", "#8C99A3", "#F0F0F0", "#8C99A3", "#121212"],
   },
   web: {
-    bright:      ["#000000", "#0419ff", "#000000", "#b10202", "#FBFBFB"],
-    dark:        ["#000000", "#000676", "#000000", "#5e0200", "#FBFBFB"],
-    blues:       ["#000000", "#0000FF", "#000000", "#840DD2", "#FBFBFB"],
-    gray:        ["#000000", "#666666", "#000000", "#666666", "#FBFBFB"],
-    night_gray:  ["#FBFBFB", "#666666", "#FBFBFB", "#666666", "#000000"],
-    night_blues: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+    ocean:       ["#000000", "#1A5FD0", "#000000", "#D0461A", "#FAF9F6"],
+    forest:      ["#000000", "#127A5A", "#000000", "#8A3FB0", "#FAF9F6"],
+    ink:         ["#000000", "#283593", "#000000", "#7B1F3A", "#FAF9F6"],
+    slate:       ["#000000", "#5A6872", "#000000", "#5A6872", "#FAF9F6"],
+    midnight:    ["#F0F0F0", "#6CB4FF", "#F0F0F0", "#F2A65A", "#121212"],
+    moonlight:   ["#F0F0F0", "#8C99A3", "#F0F0F0", "#8C99A3", "#121212"],
   },
 };
 const SAMPLE = [
@@ -236,7 +238,7 @@ function paintSample(el, theme, lines = SAMPLE) {
 
 // ---- state ----
 const $ = id => document.getElementById(id);
-const state = { style: "pdf", theme: "bright", custom: STYLES.pdf.bright.slice(), file: null,
+const state = { style: "pdf", theme: "ocean", custom: STYLES.pdf.ocean.slice(), file: null,
                 ready: false, busy: false, outUrl: null };
 
 function currentColors() {
@@ -247,7 +249,7 @@ function renderThemes() {
   const box = $("themes");
   box.textContent = "";
   const names = [...Object.keys(STYLES[state.style]), "custom"];
-  if (!names.includes(state.theme)) state.theme = "bright";
+  if (!names.includes(state.theme)) state.theme = "ocean";
   for (const name of names) {
     const colors = name === "custom" ? state.custom : STYLES[state.style][name];
     const b = document.createElement("button");
