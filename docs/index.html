@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadEzy</title>
+<meta name="description" content="Colour a PDF's text with line gradients that guide your eye from one line to the next. Runs in your browser; your PDF never leaves your device.">
+<style>
+  :root {
+    --bg: #f6f6f3; --card: #ffffff; --ink: #1b1c20; --ink-soft: #5d6070; --line: #e2e2dc;
+    --accent: #2f4bd8; --accent-ink: #ffffff; --accent-soft: #e8ecff; --ok: #1f7a43; --err: #b3261e;
+    --shadow: 0 1px 2px rgba(20,20,30,.06), 0 4px 16px rgba(20,20,30,.05);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121317; --card: #1b1d23; --ink: #ecedf1; --ink-soft: #a3a6b4; --line: #2c2f38;
+      --accent: #7d93ff; --accent-ink: #0d1030; --accent-soft: #232a4d; --ok: #63d18f; --err: #ff8a80;
+      --shadow: none; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121317; --card: #1b1d23; --ink: #ecedf1; --ink-soft: #a3a6b4; --line: #2c2f38;
+    --accent: #7d93ff; --accent-ink: #0d1030; --accent-soft: #232a4d; --ok: #63d18f; --err: #ff8a80;
+    --shadow: none; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 48px; }
+  header h1 { font-size: 2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header h1 .grad { font-weight: 800; }
+  header p { margin: 0; color: var(--ink-soft); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; margin-top: 18px; box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; display: flex; gap: 10px; align-items: center; }
+  .step {
+    display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent); font-size: .85rem; font-weight: 700;
+  }
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop .big { font-weight: 600; }
+  .drop .small { color: var(--ink-soft); font-size: .9rem; }
+  .file-chosen { margin-top: 10px; font-size: .95rem; color: var(--ink-soft); word-break: break-word; }
+  .file-chosen b { color: var(--ink); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 14px; flex-wrap: wrap; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink); padding: 8px 14px; font: inherit; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  @media (max-width: 520px) {
+    .themes { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .theme .sample { font-size: 9.5px; padding: 8px; min-height: 0; }
+  }
+  .theme {
+    border: 2px solid var(--line); border-radius: 12px; padding: 0; background: var(--card);
+    cursor: pointer; text-align: left; font: inherit; color: var(--ink); overflow: hidden;
+  }
+  .theme[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme .sample {
+    font: 12.5px/1.45 Georgia, "Times New Roman", serif; padding: 10px 12px; min-height: 96px;
+    border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+  }
+  .theme .name { padding: 8px 12px; font-weight: 600; font-size: .95rem; text-transform: capitalize; }
+  .custom-row { display: none; flex-wrap: wrap; gap: 12px; margin-top: 14px; align-items: end; }
+  .custom-row.show { display: flex; }
+  .custom-row label { display: flex; flex-direction: column; font-size: .8rem; color: var(--ink-soft); gap: 4px; }
+  .custom-row input[type=color] { width: 52px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--ink-soft); }
+  .adv { display: grid; gap: 12px; margin-top: 12px; }
+  .adv label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+  .adv label.inline { flex-direction: row; align-items: center; gap: 8px; }
+  .adv input[type=text] {
+    font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); max-width: 260px;
+  }
+  .hint { color: var(--ink-soft); font-size: .85rem; }
+  .go { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); text-decoration: none; display: inline-block;
+  }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .status { color: var(--ink-soft); font-size: .95rem; min-height: 1.5em; }
+  .status.err { color: var(--err); }
+  .status.ok { color: var(--ok); }
+  progress { width: 100%; height: 10px; margin-top: 12px; accent-color: var(--accent); display: none; }
+  progress.show { display: block; }
+  .result { display: none; margin-top: 14px; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .result.show { display: flex; }
+  footer { margin-top: 28px; color: var(--ink-soft); font-size: .88rem; }
+  footer a { color: var(--accent); }
+  footer p { margin: 6px 0; }
+  .sr { position: absolute; left: -9999px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="logo">ReadEzy</h1>
+    <p>Colour your PDF's text with line gradients that lead your eye from the end of one line to the start of the next.</p>
+  </header>
+
+  <section class="card" aria-labelledby="h-file">
+    <h2 id="h-file"><span class="step">1</span>Choose a PDF</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="application/pdf,.pdf">
+      <span class="big">Drop a PDF here, or click to choose one</span>
+      <span class="small">Your file stays on this device. Nothing is uploaded.</span>
+    </label>
+    <div class="file-chosen" id="chosen" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-theme">
+    <h2 id="h-theme"><span class="step">2</span>Pick a theme</h2>
+    <div class="seg" role="group" aria-label="Colouring style">
+      <button type="button" data-style="pdf" aria-pressed="true">PDF style</button>
+      <button type="button" data-style="web" aria-pressed="false">Web style</button>
+    </div>
+    <div class="themes" id="themes" role="radiogroup" aria-label="Theme"></div>
+    <div class="custom-row" id="custom-row">
+      <label>Colour 1<input type="color" data-ci="0"></label>
+      <label>Colour 2<input type="color" data-ci="1"></label>
+      <label>Colour 3<input type="color" data-ci="2"></label>
+      <label>Colour 4<input type="color" data-ci="3"></label>
+      <label>Background<input type="color" data-ci="4"></label>
+      <span class="hint">Lines fade 1→2, 2→1, 3→4, 4→3. A dark background switches to night mode.</span>
+    </div>
+    <details>
+      <summary>More options</summary>
+      <div class="adv">
+        <label>Pages to colour
+          <input type="text" id="pages" placeholder="All pages, or e.g. 1-5, 8" inputmode="numeric">
+        </label>
+        <label class="inline"><input type="checkbox" id="restart"> Restart the colour pattern on every page</label>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" aria-labelledby="h-go">
+    <h2 id="h-go"><span class="step">3</span>Colour it and download</h2>
+    <div class="go">
+      <button class="btn" id="go" type="button" disabled>Colour my PDF</button>
+      <span class="status" id="status" role="status" aria-live="polite">Loading the converter…</span>
+    </div>
+    <progress id="bar" max="1" value="0"></progress>
+    <div class="result" id="result">
+      <a class="btn" id="dl" href="#" download>Download coloured PDF</a>
+      <a class="btn secondary" id="open" href="#" target="_blank" rel="noopener">Open in a new tab</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>Everything runs in your browser with <a href="https://pyodide.org/">Pyodide</a> and
+       <a href="https://pypdf.readthedocs.io/">pypdf</a>. Text stays selectable and searchable.</p>
+    <p id="self-dl-row"><a href="index.html" id="self-dl" download="ReadEzy.html">Download this app</a> as a single
+       file and open it in your browser any time. It needs an internet connection to load the converter.</p>
+    <p>Source and command-line version: <a href="https://github.com/arkapravag/read-ezy">github.com/arkapravag/read-ezy</a>.</p>
+  </footer>
+</main>
+
+<script>
+"use strict";
+const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/";
+const PYPDF_WHEELS = [
+  "pypdf-6.21.4-py3-none-any.whl",
+  "https://files.pythonhosted.org/packages/3f/4b/77e8ad4ac42c9d93600f40541a50e9feb3a61d2bbee2d76f659346072051/pypdf-6.21.4-py3-none-any.whl",
+];
+const CORE_SOURCE = "\"\"\"\nreadezy_core - ReadEzy's engine: colour a PDF's text with line gradients that\nlead the eye from the end of one line to the start of the next.\n\nPure Python (only needs pypdf), so the same code runs on the command line and\nin the browser via Pyodide.\n\nTwo styles are available:\n\n  \"pdf\" (default)  vivid colours on white paper; line breaks follow how the PDF\n                   draws its text; the colour pattern restarts on every page.\n  \"web\"            softer colours on off-white paper; line breaks follow the\n                   visual layout; the pattern continues across pages.\n\nColour maths\n------------\n* A theme has four text colours c1..c4 and a background colour.\n* Lines cycle through four gradients:\n      line 0: c1 -> c2      line 1: c2 -> c1\n      line 2: c3 -> c4      line 3: c4 -> c3      (then repeat)\n* Every glyph gets ONE solid colour on a cosine ease,\n      v = (cos(pi * (x - x_min) / (x_max - x_min) - pi) + 1) / 2,\n  with RGB rounded like JavaScript's Math.round.\n\n\"pdf\" style line detection\n--------------------------\nGlyph positions are measured on a 150 dpi canvas, in drawing order:\n    x = round(device x of the text-showing operator's origin\n              + advance within the operator / font scale)\nwhere font scale = size / clamp(size, 16, 100), relative to the canvas of any\ntransparency group the glyph is drawn into.  A new line starts when x drops\nby more than 75; positions are rebuilt for every page.\n\n\"web\" style line detection\n--------------------------\nx is each glyph's left edge in CSS px; a new line starts when x moves left by\nmore than 3 px or up by more than 50 px; the cycle runs through the document.\n\nHow colours are applied\n-----------------------\nEvery glyph's fill colour is set inside the PDF's own drawing instructions:\ntext-showing operators are split where the colour changes and the original fill\ncolour is restored afterwards.  Forms that contain text get a recoloured copy\nper use.  Fonts, images, links and the text layer are untouched.  Dark themes\npaint the page background first.\n\"\"\"\nimport io\nimport math\nimport re\n\nfrom pypdf import PdfReader, PdfWriter\nfrom pypdf._cmap import charset_encoding\nfrom pypdf._codecs import adobe_glyphs\nfrom pypdf._codecs.core_font_metrics import CORE_FONT_METRICS\nfrom pypdf.generic import (ArrayObject, ByteStringObject, ContentStream,\n                           DecodedStreamObject, FloatObject, NameObject,\n                           NumberObject, StreamObject)\n\n__version__ = \"2.0.0\"\n\n# Themes: [c1, c2, c3, c4, background]\nSTYLES = {\n    \"pdf\": {\n        \"bright\":   [\"#000000\", \"#0000FF\", \"#000000\", \"#FF0500\", \"#FFFFFF\"],\n        \"dark\":     [\"#000000\", \"#00057F\", \"#000000\", \"#970000\", \"#FFFFFF\"],\n        \"blues\":    [\"#000000\", \"#0000FF\", \"#000000\", \"#840DD2\", \"#FFFFFF\"],\n        \"gray\":     [\"#000000\", \"#666666\", \"#000000\", \"#666666\", \"#FFFFFF\"],\n        \"inverted\": [\"#FBFBFB\", \"#56AAFF\", \"#FBFBFB\", \"#9E8DFC\", \"#000000\"],\n    },\n    \"web\": {\n        \"bright\":      [\"#000000\", \"#0419ff\", \"#000000\", \"#b10202\", \"#FBFBFB\"],\n        \"dark\":        [\"#000000\", \"#000676\", \"#000000\", \"#5e0200\", \"#FBFBFB\"],\n        \"blues\":       [\"#000000\", \"#0000FF\", \"#000000\", \"#840DD2\", \"#FBFBFB\"],\n        \"gray\":        [\"#000000\", \"#666666\", \"#000000\", \"#666666\", \"#FBFBFB\"],\n        \"night_gray\":  [\"#FBFBFB\", \"#666666\", \"#FBFBFB\", \"#666666\", \"#000000\"],\n        \"night_blues\": [\"#FBFBFB\", \"#56AAFF\", \"#FBFBFB\", \"#9E8DFC\", \"#000000\"],\n    },\n}\nCUSTOM_DEFAULT = [\"#000000\", \"#0000FF\", \"#000000\", \"#FF0500\", \"#FFFFFF\"]\nDEFAULT_STYLE, DEFAULT_THEME = \"pdf\", \"bright\"\n\nNUM_COLORS = 4\nPI_APPROX = 3.1415\nPDF_DPI = 150                 # canvas resolution used for positions\nPDF_NEW_LINE_DX = 75          # recorded canvas units\nFONT_SCALE_MIN, FONT_SCALE_MAX = 16, 100\nWEB_NEW_LINE_DX, WEB_NEW_LINE_DY = 3, 50      # CSS px\nMAX_FORM_DEPTH = 12\n\n\nclass ReadEzyError(Exception):\n    pass\n\n\n# ----------------------------------------------------------------- colours --\ndef hex_rgb(h):\n    h = str(h).strip().lstrip(\"#\")\n    if len(h) != 6 or any(c not in \"0123456789abcdefABCDEF\" for c in h):\n        raise ValueError(f\"bad colour {h!r}, use #RRGGBB\")\n    return tuple(int(h[i:i + 2], 16) for i in (0, 2, 4))\n\n\ndef is_dark(rgb):\n    r, g, b = rgb\n    return 0.2126 * r + 0.7152 * g + 0.0722 * b < 120\n\n\ndef js_round(v):\n    return math.floor(v + 0.5)    # Math.round semantics (.5 rounds up)\n\n\ndef gradient_color(phase, x, x_min, x_max, theme_rgb):\n    \"\"\"Colour of one glyph; None for a one-glyph line (keeps its original colour).\"\"\"\n    c1, c2, c3, c4 = theme_rgb[:4]\n    start, end = (c1, c2) if phase < 2 else (c3, c4)\n    if x_max == x_min:\n        return None\n    k = PI_APPROX / (x_max - x_min) * (x - x_min)\n    if phase % 2 == 0:\n        v = (math.cos(k - PI_APPROX) + 1) / 2      # start -> end\n    else:\n        v = (math.cos(k) + 1) / 2                  # end -> start\n    return tuple(js_round((e - s) * v + s) for s, e in zip(start, end))\n\n\n# ---------------------------------------------------------------- matrices --\nIDENT = (1.0, 0.0, 0.0, 1.0, 0.0, 0.0)\n\n\ndef mmul(a, b):\n    \"\"\"a then b (PDF row-vector convention: p' = p * a * b).\"\"\"\n    return (a[0] * b[0] + a[1] * b[2], a[0] * b[1] + a[1] * b[3],\n            a[2] * b[0] + a[3] * b[2], a[2] * b[1] + a[3] * b[3],\n            a[4] * b[0] + a[5] * b[2] + b[4], a[4] * b[1] + a[5] * b[3] + b[5])\n\n\ndef apply(m, x, y):\n    return x * m[0] + y * m[2] + m[4], x * m[1] + y * m[3] + m[5]\n\n\ndef _nums(vals):\n    return tuple(float(v) for v in vals)\n\n\ndef viewport_transform(page, scale):\n    \"\"\"Page viewport transform (user space -> canvas pixels).\"\"\"\n    mb = _nums(page.mediabox)\n    cb = _nums(page.cropbox) if \"/CropBox\" in page else mb\n    vb = [max(min(mb[0], mb[2]), min(cb[0], cb[2])), max(min(mb[1], mb[3]), min(cb[1], cb[3])),\n          min(max(mb[0], mb[2]), max(cb[0], cb[2])), min(max(mb[1], mb[3]), max(cb[1], cb[3]))]\n    if vb[2] <= vb[0] or vb[3] <= vb[1]:\n        vb = [min(mb[0], mb[2]), min(mb[1], mb[3]), max(mb[0], mb[2]), max(mb[1], mb[3])]\n    cx, cy = (vb[2] + vb[0]) / 2, (vb[3] + vb[1]) / 2\n    rot = (page.rotation or 0) % 360\n    ra, rb, rc, rd = {0: (1, 0, 0, -1), 90: (0, 1, 1, 0),\n                      180: (-1, 0, 0, 1), 270: (0, -1, -1, 0)}.get(rot, (1, 0, 0, -1))\n    if ra == 0:\n        ox, oy = abs(cy - vb[1]) * scale, abs(cx - vb[0]) * scale\n        width = abs(vb[3] - vb[1]) * scale\n    else:\n        ox, oy = abs(cx - vb[0]) * scale, abs(cy - vb[1]) * scale\n        width = abs(vb[2] - vb[0]) * scale\n    return (ra * scale, rb * scale, rc * scale, rd * scale,\n            ox - ra * scale * cx - rc * scale * cy,\n            oy - rb * scale * cx - rd * scale * cy), width\n\n\n# ------------------------------------------------------------------- fonts --\ndef _strip_subset(name):\n    return name.split(\"+\", 1)[1] if len(name) > 7 and name[6] == \"+\" else name\n\n\ndef _parse_cmap_unicode(data):\n    \"\"\"ToUnicode CMap -> {code bytes: str}.\"\"\"\n    out = {}\n    txt = data.decode(\"latin1\", \"replace\")\n\n    def u16(h):\n        try:\n            return bytes.fromhex(h).decode(\"utf-16-be\", \"replace\")\n        except ValueError:\n            return \"\"\n    for block in re.findall(r\"beginbfchar(.*?)endbfchar\", txt, re.S):\n        hexes = re.findall(r\"<([0-9A-Fa-f\\s]*)>\", block)\n        for src, dst in zip(hexes[0::2], hexes[1::2]):\n            src = re.sub(r\"\\s\", \"\", src)\n            if src and len(src) % 2 == 0:\n                out[bytes.fromhex(src)] = u16(re.sub(r\"\\s\", \"\", dst))\n    for block in re.findall(r\"beginbfrange(.*?)endbfrange\", txt, re.S):\n        for m in re.finditer(r\"<([0-9A-Fa-f]+)>\\s*<([0-9A-Fa-f]+)>\\s*(\\[[^\\]]*\\]|<[0-9A-Fa-f]*>)\", block):\n            lo, hi, dst = m.group(1), m.group(2), m.group(3)\n            n, a, b = len(lo) // 2, int(lo, 16), int(hi, 16)\n            if b - a > 65535 or n == 0:\n                continue\n            if dst.startswith(\"[\"):\n                items = re.findall(r\"<([0-9A-Fa-f]*)>\", dst)\n                for i, h in enumerate(items[: b - a + 1]):\n                    out[(a + i).to_bytes(n, \"big\")] = u16(h)\n            else:\n                d = dst.strip(\"<>\")\n                base = int(d, 16) if d else 0\n                for i in range(b - a + 1):\n                    v = base + i\n                    out[(a + i).to_bytes(n, \"big\")] = u16(f\"{v:0{len(d)}X}\") if d else \"\"\n    return out\n\n\ndef _codespace_ranges(data):\n    txt = data.decode(\"latin1\", \"replace\")\n    ranges = []\n    for block in re.findall(r\"begincodespacerange(.*?)endcodespacerange\", txt, re.S):\n        hexes = re.findall(r\"<([0-9A-Fa-f]+)>\", block)\n        for lo, hi in zip(hexes[0::2], hexes[1::2]):\n            ranges.append((len(lo) // 2, bytes.fromhex(lo), bytes.fromhex(hi)))\n    return sorted(ranges)\n\n\ndef _truetype_missing_glyphs(data):\n    \"\"\"Glyph ids that are empty in a TrueType font program: glyphs whose\n    'glyf' data is 12 bytes or less, e.g. spaces.\n    Returns (missing set, numGlyphs) or None if the font can't be parsed.\"\"\"\n    import struct\n    try:\n        num_tables = struct.unpack(\">H\", data[4:6])[0]\n        tables = {}\n        for i in range(num_tables):\n            rec = data[12 + 16 * i: 28 + 16 * i]\n            tag, _, off, length = struct.unpack(\">4sIII\", rec)\n            tables[tag] = (off, length)\n        head_off = tables[b\"head\"][0]\n        long_loca = struct.unpack(\">h\", data[head_off + 50: head_off + 52])[0] == 1\n        num_glyphs = struct.unpack(\">H\", data[tables[b\"maxp\"][0] + 4: tables[b\"maxp\"][0] + 6])[0]\n        loff, llen = tables[b\"loca\"]\n        if long_loca:\n            n = min(num_glyphs + 1, llen // 4)\n            offs = list(struct.unpack(f\">{n}I\", data[loff: loff + 4 * n]))\n        else:\n            n = min(num_glyphs + 1, llen // 2)\n            offs = [2 * v for v in struct.unpack(f\">{n}H\", data[loff: loff + 2 * n])]\n        if len(offs) < num_glyphs + 1:\n            return None\n        order = sorted(range(num_glyphs + 1), key=lambda i: (offs[i], i))\n        end = {}\n        for a, b in zip(order, order[1:]):\n            end[a] = offs[b]\n        missing = {i for i in range(num_glyphs) if end.get(i, offs[i]) - offs[i] <= 12}\n        return missing, num_glyphs\n    except (KeyError, struct.error, IndexError, ValueError):\n        return None\n\n\nclass FontInfo:\n    \"\"\"What the interpreter needs from a font: how to split shown strings into\n    codes, each code's advance width, whether it is a word space, and its\n    unicode text (to recognise whitespace).\"\"\"\n\n    def __init__(self, fdict):\n        self.ok, self.type3, self.vertical = True, False, False\n        self.split = self._split1\n        self.widths, self.default_w, self.scale = {}, 0.0, 0.001\n        self.to_unicode = {}\n        self.table = None\n        self.tt_missing = None          # (missing gids, numGlyphs, cid->gid) for CID TrueType\n        self.tt_simple = False          # embedded simple TrueType\n        subtype = str(fdict.get(\"/Subtype\", \"\"))\n        tu = fdict.get(\"/ToUnicode\")\n        if tu is not None:\n            try:\n                self.to_unicode = _parse_cmap_unicode(tu.get_object().get_data())\n            except Exception:\n                self.to_unicode = {}\n        if subtype == \"/Type0\":\n            self._init_type0(fdict)\n        else:\n            if subtype == \"/Type3\":\n                self.type3 = True\n                fm = fdict.get(\"/FontMatrix\")\n                self.scale = float(fm[0]) if fm else 0.001\n            self._init_simple(fdict)\n\n    # --- simple fonts (Type1, TrueType, MMType1, Type3) ---\n    def _init_simple(self, fdict):\n        base = _strip_subset(str(fdict.get(\"/BaseFont\", \"\")).lstrip(\"/\"))\n        enc = fdict.get(\"/Encoding\")\n        enc = enc.get_object() if enc is not None else None\n        table = None\n        if isinstance(enc, NameObject) and str(enc) in charset_encoding:\n            table = list(charset_encoding[str(enc)])\n        elif enc is not None and hasattr(enc, \"get\"):\n            be = enc.get(\"/BaseEncoding\")\n            table = list(charset_encoding.get(str(be), charset_encoding[\"/StandardEncoding\"]))\n            diffs, code = enc.get(\"/Differences\"), 0\n            if diffs is not None:\n                for item in diffs:\n                    if isinstance(item, (int, NumberObject)):\n                        code = int(item)\n                    else:\n                        if 0 <= code < 256:\n                            table[code] = adobe_glyphs.get(str(item), table[code])\n                        code += 1\n        if table is None:\n            if base.startswith(\"Symbol\"):\n                table = list(charset_encoding[\"/Symbol\"])\n            elif base.startswith(\"ZapfDingbats\"):\n                table = list(charset_encoding[\"/ZapfDingbats\"])\n            else:\n                table = list(charset_encoding[\"/StandardEncoding\"])\n        self.table = table\n        fdesc = fdict.get(\"/FontDescriptor\")\n        fdesc = fdesc.get_object() if fdesc is not None else None\n        self.tt_simple = fdesc is not None and \"/FontFile2\" in fdesc\n        widths = fdict.get(\"/Widths\")\n        if widths is not None:\n            first = int(fdict.get(\"/FirstChar\", 0))\n            for i, w in enumerate(widths.get_object()):\n                try:\n                    self.widths[first + i] = float(w)\n                except (TypeError, ValueError):\n                    pass\n            fd = fdict.get(\"/FontDescriptor\")\n            fd = fd.get_object() if fd is not None else None\n            if fd is not None and \"/MissingWidth\" in fd:\n                self.default_w = float(fd[\"/MissingWidth\"])\n        else:                                         # standard 14 font\n            metrics = CORE_FONT_METRICS.get(base) or CORE_FONT_METRICS.get(\n                {\"Arial\": \"Helvetica\"}.get(base, base.replace(\"-\", \",\")), None)\n            if metrics is None:\n                for k in CORE_FONT_METRICS:\n                    if base.startswith(k):\n                        metrics = CORE_FONT_METRICS[k]\n            if metrics is not None:\n                cw = metrics.character_widths\n                self.default_w = float(cw.get(\"default\", 0))\n                for code, ch in enumerate(table):\n                    if ch and ch in cw:\n                        self.widths[code] = float(cw[ch])\n\n    @staticmethod\n    def _split1(b):\n        return [b[i:i + 1] for i in range(len(b))]\n\n    # --- composite fonts ---\n    def _init_type0(self, fdict):\n        enc = fdict.get(\"/Encoding\")\n        enc = enc.get_object() if enc is not None else None\n        if isinstance(enc, NameObject):\n            name = str(enc)\n            self.vertical = name.endswith(\"-V\")\n            if name in (\"/Identity-H\", \"/Identity-V\") or \"UCS2\" in name or \"UTF16\" in name:\n                self.split = lambda b: [b[i:i + 2] for i in range(0, len(b), 2)]\n            else:\n                self.ok = False\n        elif isinstance(enc, StreamObject):\n            if int(enc.get(\"/WMode\", 0)) == 1:\n                self.vertical = True\n            ranges = _codespace_ranges(enc.get_data())\n            if not ranges:\n                self.ok = False\n            else:\n                def split(b, ranges=ranges):\n                    out, i = [], 0\n                    while i < len(b):\n                        for n, lo, hi in ranges:\n                            c = b[i:i + n]\n                            if len(c) == n and all(l <= x <= h for x, l, h in zip(c, lo, hi)):\n                                break\n                        else:\n                            n = ranges[0][0]\n                        out.append(b[i:i + n])\n                        i += n\n                    return out\n                self.split = split\n        else:\n            self.ok = False\n        desc = fdict.get(\"/DescendantFonts\")\n        desc = desc.get_object()[0].get_object() if desc is not None else {}\n        self.default_w = float(desc.get(\"/DW\", 1000))\n        fdesc = desc.get(\"/FontDescriptor\")\n        fdesc = fdesc.get_object() if fdesc is not None else None\n        if (str(desc.get(\"/Subtype\", \"\")) == \"/CIDFontType2\" and fdesc is not None\n                and \"/FontFile2\" in fdesc):\n            try:\n                info = _truetype_missing_glyphs(fdesc[\"/FontFile2\"].get_object().get_data())\n            except Exception:\n                info = None\n            if info is not None:\n                c2g = desc.get(\"/CIDToGIDMap\")\n                c2g = c2g.get_object() if c2g is not None else None\n                gid_map = None\n                if isinstance(c2g, StreamObject):\n                    raw = c2g.get_data()\n                    gid_map = [int.from_bytes(raw[i:i + 2], \"big\") for i in range(0, len(raw) - 1, 2)]\n                self.tt_missing = (info[0], info[1], gid_map)\n        w = desc.get(\"/W\")\n        if w is not None:\n            w = [x.get_object() if hasattr(x, \"get_object\") else x for x in w.get_object()]\n            i = 0\n            while i < len(w):\n                try:\n                    first = int(w[i])\n                    if i + 1 < len(w) and isinstance(w[i + 1], list):\n                        for j, val in enumerate(w[i + 1]):\n                            self.widths[first + j] = float(val)\n                        i += 2\n                    else:\n                        last, val = int(w[i + 1]), float(w[i + 2])\n                        if last - first <= 65535:\n                            for c in range(first, last + 1):\n                                self.widths[c] = val\n                        i += 3\n                except (TypeError, ValueError, IndexError):\n                    break\n\n    def width(self, code):\n        \"\"\"Advance in text space per unit font size.\"\"\"\n        return self.widths.get(int.from_bytes(code, \"big\"), self.default_w) * self.scale\n\n    def text(self, code):\n        if code in self.to_unicode:\n            return self.to_unicode[code]\n        if self.table is not None and len(code) == 1:\n            ch = self.table[code[0]]\n            return ch if ch else \"\"\n        return \"\"\n\n    def in_font(self, code):\n        \"\"\"False for glyphs that draw nothing (empty or absent TrueType\n        glyphs); they don't take part in line detection.\"\"\"\n        if self.tt_missing is not None:\n            missing, num, gid_map = self.tt_missing\n            cid = int.from_bytes(code, \"big\")        # Identity-style CMaps: code == CID\n            gid = cid if gid_map is None else (gid_map[cid] if cid < len(gid_map) else -1)\n            return 0 <= gid < num and gid not in missing\n        if self.tt_simple:\n            t = self.text(code)\n            return not (t and not t.strip())\n        return True\n\n    @staticmethod\n    def is_word_space(code):\n        return code == b\" \"\n\n\n# ------------------------------------------------------------- interpreter --\n_FILL_OPS = {b\"g\", b\"rg\", b\"k\", b\"cs\", b\"sc\", b\"scn\"}\n_SHOW_OPS = {b\"Tj\", b\"TJ\", b\"'\", b'\"'}\n\n\nclass Glyph:\n    __slots__ = (\"ch\", \"rx\", \"ry\", \"wx\", \"wy\")\n\n    def __init__(self, ch, rx, ry, wx, wy):\n        self.ch, self.rx, self.ry, self.wx, self.wy = ch, rx, ry, wx, wy\n\n\nclass Show:\n    \"\"\"Placeholder for a rewritten text-showing operator.\"\"\"\n    __slots__ = (\"segments\", \"restore\")\n\n    def __init__(self, segments, restore):\n        self.segments, self.restore = segments, restore\n\n\nclass FormUse:\n    \"\"\"Placeholder for a recoloured copy of a form XObject.\"\"\"\n    __slots__ = (\"original\", \"ops\", \"xobjects\", \"name\")\n\n    def __init__(self, original, ops, xobjects, name):\n        self.original, self.ops, self.xobjects, self.name = original, ops, xobjects, name\n\n\nclass _State:\n    __slots__ = (\"ctm\", \"fill\", \"font\", \"fs\", \"tc\", \"tw\", \"th\", \"tl\", \"rise\")\n\n    def __init__(self):\n        self.ctm, self.fill, self.font, self.fs = IDENT, (None, None), None, 0.0\n        self.tc = self.tw = self.tl = self.rise = 0.0\n        self.th = 1.0\n\n    def copy(self):\n        s = _State.__new__(_State)\n        for k in _State.__slots__:\n            setattr(s, k, getattr(self, k))\n        return s\n\n\ndef _resources_of(obj):\n    node = obj\n    for _ in range(32):\n        if node is None:\n            return None\n        r = node.get(\"/Resources\")\n        if r is not None:\n            return r.get_object()\n        p = node.get(\"/Parent\")\n        node = p.get_object() if p is not None else None\n    return None\n\n\nclass PageInterpreter:\n    def __init__(self, writer, page, form_counter):\n        self.writer, self.page = writer, page\n        self.vt, self.canvas_w = viewport_transform(page, PDF_DPI / 72)\n        self.vt_css, _ = viewport_transform(page, 96 / 72)\n        self.glyphs = []\n        self.font_cache = {}\n        self.form_counter = form_counter\n        self.n_forms = 0\n\n    def _font(self, fobj):\n        key = id(fobj)\n        if key not in self.font_cache:\n            try:\n                self.font_cache[key] = FontInfo(fobj)\n            except Exception:\n                fi = FontInfo.__new__(FontInfo)\n                fi.ok = False\n                self.font_cache[key] = fi\n        return self.font_cache[key]\n\n    @staticmethod\n    def _restore(fill):\n        if fill == (None, None):\n            return [([NumberObject(0)], b\"g\")]\n        return [op for op in fill if op is not None]\n\n    def run(self):\n        content = self.page.get_contents()\n        if content is None:\n            return None\n        ops = content.operations\n        return self.walk(ops, _resources_of(self.page), _State(), (0, 0), 0)\n\n    def walk(self, ops, resources, st, group_off, depth):\n        fonts = resources.get(\"/Font\") if resources is not None else None\n        fonts = fonts.get_object() if fonts is not None else None\n        xobjs = resources.get(\"/XObject\") if resources is not None else None\n        xobjs = xobjs.get_object() if xobjs is not None else None\n        out, stack = [], []\n        tm = tlm = IDENT\n        for operands, op in ops:\n            if op == b\"INLINE IMAGE\":\n                out.append((operands, op))\n                continue\n            if op == b\"q\":\n                stack.append(st.copy())\n            elif op == b\"Q\":\n                if stack:\n                    st = stack.pop()\n            elif op == b\"cm\" and len(operands) == 6:\n                st.ctm = mmul(_nums(operands), st.ctm)\n            elif op in _FILL_OPS:\n                if op in (b\"g\", b\"rg\", b\"k\"):\n                    st.fill = (None, (operands, op))\n                elif op == b\"cs\":\n                    st.fill = ((operands, op), None)\n                else:\n                    st.fill = (st.fill[0], (operands, op))\n            elif op == b\"BT\":\n                tm = tlm = IDENT\n            elif op == b\"Tf\" and len(operands) == 2:\n                f = fonts.get(operands[0]) if fonts is not None else None\n                st.font = self._font(f.get_object()) if f is not None else None\n                st.fs = float(operands[1])\n            elif op == b\"Tc\" and operands:\n                st.tc = float(operands[0])\n            elif op == b\"Tw\" and operands:\n                st.tw = float(operands[0])\n            elif op == b\"Tz\" and operands:\n                st.th = float(operands[0]) / 100\n            elif op == b\"TL\" and operands:\n                st.tl = float(operands[0])\n            elif op == b\"Ts\" and operands:\n                st.rise = float(operands[0])\n            elif op in (b\"Td\", b\"TD\") and len(operands) == 2:\n                tx, ty = float(operands[0]), float(operands[1])\n                if op == b\"TD\":\n                    st.tl = -ty\n                tlm = mmul((1, 0, 0, 1, tx, ty), tlm)\n                tm = tlm\n            elif op == b\"Tm\" and len(operands) == 6:\n                tm = tlm = _nums(operands)\n            elif op == b\"T*\":\n                tlm = mmul((1, 0, 0, 1, 0, -st.tl), tlm)\n                tm = tlm\n            elif op in _SHOW_OPS:\n                if op == b\"'\" or op == b'\"':\n                    if op == b'\"' and len(operands) == 3:\n                        st.tw, st.tc = float(operands[0]), float(operands[1])\n                        out.append(([operands[0]], b\"Tw\"))\n                        out.append(([operands[1]], b\"Tc\"))\n                    out.append(([], b\"T*\"))\n                    tlm = mmul((1, 0, 0, 1, 0, -st.tl), tlm)\n                    tm = tlm\n                if not operands:\n                    out.append((operands, op))\n                    continue\n                shown = operands[-1]\n                elements = list(shown) if op == b\"TJ\" else [shown]\n                show, tm = self._show(elements, st, tm, group_off)\n                if show is None:            # font we can't interpret: keep as is\n                    out.append((operands, op) if op in (b\"Tj\", b\"TJ\") else ([shown], b\"Tj\"))\n                else:\n                    out.append(show)\n                continue\n            elif op == b\"Do\" and operands and xobjs is not None and depth < MAX_FORM_DEPTH:\n                use = self._form(operands[0], xobjs, resources, st, group_off, depth)\n                if use is not None:\n                    out.append(use)\n                    continue\n            out.append((operands, op))\n        return out\n\n    def _show(self, elements, st, tm, group_off):\n        font = st.font\n        if font is None or not font.ok or font.vertical:\n            return None, tm\n        fs, th = st.fs, st.th\n        size = abs(fs) or 1.0\n        o = size / min(max(size, FONT_SCALE_MIN), FONT_SCALE_MAX)   # font scale\n        trm0 = mmul(tm, st.ctm)\n        gx, gy = apply(self.vt, *apply(trm0, 0, st.rise))           # run origin\n        x_acc = 0.0\n        segments = []\n        for el in elements:\n            if isinstance(el, (bytes, str)) or hasattr(el, \"original_bytes\"):\n                raw = el.original_bytes if hasattr(el, \"original_bytes\") else (\n                    el if isinstance(el, bytes) else el.encode(\"latin1\", \"replace\"))\n                for code in font.split(raw):\n                    adv = font.width(code) * fs + st.tc + (st.tw if font.is_word_space(code) else 0.0)\n                    if font.type3 or not font.in_font(code):\n                        segments.append((\"code\", code, None))     # draws nothing\n                    else:\n                        ux, uy = apply(mmul(tm, st.ctm), 0, st.rise)\n                        wx, wy = apply(self.vt_css, ux, uy)\n                        rx = js_round(gx + x_acc / o) - group_off[0]\n                        ry = js_round(gy) - group_off[1]\n                        self.glyphs.append(Glyph(font.text(code), rx, ry, wx, wy))\n                        segments.append((\"code\", code, len(self.glyphs) - 1))\n                    x_acc += adv\n                    tm = mmul((1, 0, 0, 1, adv * th, 0), tm)\n            else:\n                try:\n                    num = float(el)\n                except (TypeError, ValueError):\n                    continue\n                d = -num / 1000 * fs\n                x_acc += d\n                tm = mmul((1, 0, 0, 1, d * th, 0), tm)\n                segments.append((\"num\", el, None))\n        return Show(segments, self._restore(st.fill)), tm\n\n    def _form(self, name, xobjs, parent_res, st, group_off, depth):\n        xo = xobjs.get(name)\n        if xo is None:\n            return None\n        xo = xo.get_object()\n        if str(xo.get(\"/Subtype\", \"\")) != \"/Form\":\n            return None\n        m = _nums(xo[\"/Matrix\"]) if \"/Matrix\" in xo else IDENT\n        inner = st.copy()\n        inner.ctm = mmul(m, st.ctm)\n        off = group_off\n        if \"/Group\" in xo and \"/BBox\" in xo:          # transparency group canvas\n            x0, y0, x1, y1 = _nums(xo[\"/BBox\"])\n            full = mmul(inner.ctm, self.vt)\n            pts = [apply(full, x, y) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]\n            xs = [p[0] - group_off[0] for p in pts]\n            ys = [p[1] - group_off[1] for p in pts]\n            lx, hx, ly, hy = max(min(xs), 0.0), max(xs), max(min(ys), 0.0), max(ys)\n            if hx > lx and hy > ly:                    # Util.intersect with the canvas\n                off = (group_off[0] + math.floor(lx), group_off[1] + math.floor(ly))\n        try:\n            ops = ContentStream(xo, self.writer).operations\n        except Exception:\n            return None\n        n_before = len(self.glyphs)\n        res = _resources_of(xo) or parent_res\n        new_ops = self.walk(ops, res, inner, off, depth + 1)\n        if len(self.glyphs) == n_before and not any(isinstance(o, (Show, FormUse)) for o in new_ops):\n            return None                                # no text inside: keep original\n        self.form_counter[0] += 1\n        return FormUse(xo, new_ops, xobjs, NameObject(f\"/RzForm{self.form_counter[0]}\"))\n\n\n# ------------------------------------------------------------- colouring --\ndef pdf_style_colors(glyphs, theme_rgb):\n    \"\"\"\\\"pdf\\\" style colour per glyph (None = keep the original).\"\"\"\n    lines, line_map = [], {}\n    prev, idx, color = None, -1, -1\n    for g in glyphs:                                   # split into lines\n        if prev is None or g.rx < prev - PDF_NEW_LINE_DX:\n            if idx >= 0:\n                lines[idx][1] = prev\n            idx += 1\n            color = (color + 1) % NUM_COLORS\n            lines.append([g.rx, None, color])\n        line_map[(g.ch, g.rx, g.ry)] = idx\n        prev = g.rx\n    if idx >= 0:\n        lines[idx][1] = prev\n    out = []\n    for g in glyphs:                                   # colour along each line\n        if not g.ch.strip() and g.ch != \"\":\n            out.append(None)                           # whitespace\n            continue\n        xmin, xmax, phase = lines[line_map[(g.ch, g.rx, g.ry)]]\n        out.append(gradient_color(phase, g.rx, xmin, xmax, theme_rgb))\n    return out\n\n\nclass WebColorer:\n    \"\"\"\\\"web\\\" style line detection; the cycle continues across calls.\"\"\"\n\n    def __init__(self, theme_rgb):\n        self.theme, self.phase = theme_rgb, 0\n\n    def colors(self, glyphs):\n        out = [None] * len(glyphs)\n        line, xfirst, xlast, ylast = [], None, None, None\n\n        def flush():\n            if not line:\n                return\n            x_last = glyphs[line[-1]].wx\n            for i in line:\n                out[i] = gradient_color(self.phase, glyphs[i].wx, xfirst, x_last, self.theme)\n            self.phase = (self.phase + 1) % NUM_COLORS\n            line.clear()\n\n        for i, g in enumerate(glyphs):\n            if not g.ch.strip() and g.ch != \"\":\n                continue                               # spaces don't take part\n            if xlast is None:\n                xfirst = xlast = g.wx\n                ylast = g.wy\n            if g.wx - xlast < -WEB_NEW_LINE_DX or g.wy - ylast < -WEB_NEW_LINE_DY:\n                flush()\n                xfirst = g.wx\n            xlast, ylast = g.wx, g.wy\n            line.append(i)\n        flush()\n        return out\n\n\n# --------------------------------------------------------- writing output --\ndef _rg(col):\n    return ([FloatObject(round(c / 255, 4)) for c in col], b\"rg\")\n\n\ndef _materialise(items, colors, writer):\n    ops = []\n    for it in items:\n        if isinstance(it, Show):\n            arr, active = [], object()\n\n            def flush():\n                if arr:\n                    ops.append(([ArrayObject(arr)], b\"TJ\"))\n                arr.clear()\n            for kind, val, gi in it.segments:\n                if kind == \"num\":\n                    arr.append(val)\n                    continue\n                col = colors[gi] if gi is not None else None\n                if col != active:\n                    flush()\n                    ops.extend(it.restore if col is None else [_rg(col)])\n                    active = col\n                if arr and isinstance(arr[-1], ByteStringObject):\n                    arr[-1] = ByteStringObject(bytes(arr[-1]) + val)\n                else:\n                    arr.append(ByteStringObject(val))\n            flush()\n            ops.extend(it.restore)\n        elif isinstance(it, FormUse):\n            stream = DecodedStreamObject()\n            for k, v in it.original.items():\n                if k not in (\"/Length\", \"/Filter\", \"/DecodeParms\"):\n                    stream[NameObject(k)] = v\n            cs = ContentStream(None, writer)\n            cs.operations = _materialise(it.ops, colors, writer)\n            stream.set_data(cs.get_data())\n            it.xobjects[it.name] = writer._add_object(stream)\n            ops.append(([it.name], b\"Do\"))\n        else:\n            ops.append(it)\n    return ops\n\n\ndef parse_pages(spec, n):\n    if not spec:\n        return list(range(n))\n    out = []\n    for part in str(spec).split(\",\"):\n        part = part.strip()\n        if \"-\" in part:\n            a, b = part.split(\"-\", 1)\n            a = int(a) if a.strip() else 1\n            b = int(b) if b.strip() else n\n            out.extend(range(a - 1, min(b, n)))\n        elif part:\n            out.append(int(part) - 1)\n    return sorted({p for p in out if 0 <= p < n})\n\n\ndef convert_bytes(data, theme_colors, style=DEFAULT_STYLE, pages=None,\n                  restart_each_page=None, plain_paper=False, progress=None):\n    \"\"\"Colour a PDF given as bytes; returns (output bytes, stats dict).\n\n    progress(done, total) is called after every page.\"\"\"\n    theme_rgb = [hex_rgb(c) for c in theme_colors]\n    if len(theme_rgb) != 5:\n        raise ValueError(\"a theme needs five colours: c1 c2 c3 c4 background\")\n    if style not in STYLES:\n        raise ValueError(f\"unknown style {style!r}\")\n    night = is_dark(theme_rgb[4])\n    paper = (255, 255, 255) if plain_paper and not night else theme_rgb[4]\n    background = None if paper == (255, 255, 255) else paper\n    if restart_each_page is None:\n        restart_each_page = (style == \"pdf\")\n    try:\n        reader = PdfReader(io.BytesIO(data))\n    except Exception as e:\n        raise ReadEzyError(f\"This file could not be read as a PDF ({e}).\") from e\n    if reader.is_encrypted:\n        try:\n            ok = reader.decrypt(\"\")\n        except Exception:\n            ok = 0\n        if not ok:\n            raise ReadEzyError(\"This PDF is password protected. Unlock it first.\")\n    writer = PdfWriter(clone_from=reader)\n    page_list = parse_pages(pages, len(writer.pages))\n    web = WebColorer(theme_rgb)\n    form_counter = [0]\n    stats = {\"pages\": len(page_list), \"glyphs\": 0, \"colored\": 0, \"skipped_pages\": 0}\n    for n, pno in enumerate(page_list):\n        page = writer.pages[pno]\n        try:\n            interp = PageInterpreter(writer, page, form_counter)\n            items = interp.run()\n        except Exception:\n            items = None\n        if items is None:\n            stats[\"skipped_pages\"] += 1\n        else:\n            if style == \"pdf\":\n                colors = pdf_style_colors(interp.glyphs, theme_rgb)\n            else:\n                if restart_each_page:\n                    web.phase = 0\n                colors = web.colors(interp.glyphs)\n            ops = _materialise(items, colors, writer)\n            if background is not None:\n                r, g, b = (FloatObject(round(c / 255, 4)) for c in background)\n                ops = [([], b\"q\"), ([r, g, b], b\"rg\"),\n                       ([NumberObject(-10000), NumberObject(-10000),\n                         NumberObject(30000), NumberObject(30000)], b\"re\"),\n                       ([], b\"f\"), ([], b\"Q\")] + ops\n            cs = ContentStream(None, writer)\n            cs.operations = ops\n            page.replace_contents(cs)\n            stats[\"glyphs\"] += len(interp.glyphs)\n            stats[\"colored\"] += sum(c is not None for c in colors)\n        if progress is not None:\n            progress(n + 1, len(page_list))\n    writer.compress_identical_objects(remove_identicals=True, remove_orphans=True)\n    for page in writer.pages:\n        try:\n            page.compress_content_streams()\n        except Exception:\n            pass\n    buf = io.BytesIO()\n    writer.write(buf)\n    return buf.getvalue(), stats\n\n\ndef theme_colors(style=DEFAULT_STYLE, theme=DEFAULT_THEME, custom=None):\n    if custom:\n        return list(custom)\n    themes = STYLES[style]\n    if theme not in themes:\n        raise ValueError(f\"theme {theme!r} not in style {style!r}: {', '.join(themes)}\")\n    return themes[theme]\n";
+
+const STYLES = {
+  pdf: {
+    bright:   ["#000000", "#0000FF", "#000000", "#FF0500", "#FFFFFF"],
+    dark:     ["#000000", "#00057F", "#000000", "#970000", "#FFFFFF"],
+    blues:    ["#000000", "#0000FF", "#000000", "#840DD2", "#FFFFFF"],
+    gray:     ["#000000", "#666666", "#000000", "#666666", "#FFFFFF"],
+    inverted: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+  },
+  web: {
+    bright:      ["#000000", "#0419ff", "#000000", "#b10202", "#FBFBFB"],
+    dark:        ["#000000", "#000676", "#000000", "#5e0200", "#FBFBFB"],
+    blues:       ["#000000", "#0000FF", "#000000", "#840DD2", "#FBFBFB"],
+    gray:        ["#000000", "#666666", "#000000", "#666666", "#FBFBFB"],
+    night_gray:  ["#FBFBFB", "#666666", "#FBFBFB", "#666666", "#000000"],
+    night_blues: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+  },
+};
+const SAMPLE = [
+  "Gradient lines guide the eye",
+  "from the end of one line to",
+  "the start of the next, so it",
+  "is easier to keep your place",
+  "while reading long text.",
+];
+
+// ---- colour maths (same as readezy_core.gradient_color) ----
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function gradientColor(phase, x, xmin, xmax, theme) {
+  const [c1, c2, c3, c4] = theme.map(hexRgb);
+  const [s, e] = phase < 2 ? [c1, c2] : [c3, c4];
+  if (xmax === xmin) return null;
+  const k = Math.PI / (xmax - xmin) * (x - xmin);
+  const v = phase % 2 === 0 ? (Math.cos(k - Math.PI) + 1) / 2 : (Math.cos(k) + 1) / 2;
+  return "rgb(" + s.map((a, i) => Math.floor((e[i] - a) * v + a + 0.5)).join(",") + ")";
+}
+function paintSample(el, theme, lines = SAMPLE) {
+  el.textContent = "";
+  el.style.background = theme[4];
+  lines.forEach((line, li) => {
+    const row = document.createElement("div");
+    for (let i = 0; i < line.length; i++) {
+      const span = document.createElement("span");
+      span.textContent = line[i];
+      span.style.color = gradientColor(li % 4, i, 0, Math.max(line.length - 1, 1) , theme) || theme[0];
+      row.appendChild(span);
+    }
+    el.appendChild(row);
+  });
+}
+
+// ---- state ----
+const $ = id => document.getElementById(id);
+const state = { style: "pdf", theme: "bright", custom: STYLES.pdf.bright.slice(), file: null,
+                ready: false, busy: false, outUrl: null };
+
+function currentColors() {
+  return state.theme === "custom" ? state.custom.slice() : STYLES[state.style][state.theme];
+}
+
+function renderThemes() {
+  const box = $("themes");
+  box.textContent = "";
+  const names = [...Object.keys(STYLES[state.style]), "custom"];
+  if (!names.includes(state.theme)) state.theme = "bright";
+  for (const name of names) {
+    const colors = name === "custom" ? state.custom : STYLES[state.style][name];
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "theme"; b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(name === state.theme));
+    b.dataset.theme = name;
+    const sample = document.createElement("div"); sample.className = "sample";
+    paintSample(sample, colors);
+    const label = document.createElement("div"); label.className = "name";
+    label.textContent = name.replace("_", " ");
+    b.append(sample, label);
+    b.addEventListener("click", () => { state.theme = name; renderThemes(); });
+    box.appendChild(b);
+  }
+  $("custom-row").classList.toggle("show", state.theme === "custom");
+}
+
+document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("click", () => {
+  state.style = btn.dataset.style;
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  $("restart").checked = state.style === "pdf";
+  renderThemes();
+}));
+document.querySelectorAll(".custom-row input[type=color]").forEach(inp => {
+  inp.value = state.custom[+inp.dataset.ci].toLowerCase();
+  inp.addEventListener("input", () => { state.custom[+inp.dataset.ci] = inp.value; renderThemes(); });
+});
+$("restart").checked = true;
+paintSample($("logo"), ["#3b5bff", "#ff3b30", "#3b5bff", "#ff3b30", "transparent"], ["ReadEzy"]);
+renderThemes();
+
+// ---- file picking ----
+function setFile(f) {
+  if (!f) return;
+  if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") {
+    setStatus("That doesn't look like a PDF. Please choose a .pdf file.", "err"); return;
+  }
+  state.file = f;
+  const mb = (f.size / 1048576).toFixed(f.size > 10485760 ? 0 : 1);
+  $("chosen").innerHTML = "";
+  const b = document.createElement("b"); b.textContent = f.name;
+  $("chosen").append("Selected: ", b, ` (${mb} MB)`);
+  clearResult(); updateButton();
+}
+$("file").addEventListener("change", e => setFile(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
+
+function setStatus(text, kind = "") { const s = $("status"); s.textContent = text; s.className = "status " + kind; }
+function updateButton() { $("go").disabled = !(state.ready && state.file && !state.busy); }
+function clearResult() {
+  $("result").classList.remove("show");
+  if (state.outUrl) { URL.revokeObjectURL(state.outUrl); state.outUrl = null; }
+}
+
+// ---- worker running Pyodide ----
+const WORKER_SRC = `
+let py = null;
+async function init(cfg) {
+  importScripts(cfg.pyodideUrl + "pyodide.js");
+  py = await loadPyodide({ indexURL: cfg.pyodideUrl });
+  let wheel = null, lastErr = "";
+  for (const u of cfg.wheels) {
+    try { const r = await fetch(u); if (r.ok) { wheel = await r.arrayBuffer(); break; } lastErr = r.status; }
+    catch (e) { lastErr = e.message; }
+  }
+  if (!wheel) throw new Error("could not download pypdf (" + lastErr + ")");
+  py.FS.mkdirTree("/home/pyodide/lib");
+  py.unpackArchive(wheel, "zip", { extractDir: "/home/pyodide/lib" });
+  py.FS.writeFile("/home/pyodide/lib/readezy_core.py", cfg.core);
+  py.runPython("import sys; sys.path.insert(0, '/home/pyodide/lib'); import readezy_core");
+}
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    if (m.type === "init") { await init(m); self.postMessage({ type: "ready" }); return; }
+    if (m.type === "convert") {
+      py.globals.set("in_bytes", new Uint8Array(m.data));
+      py.globals.set("job", py.toPy({ colors: m.colors, style: m.style, pages: m.pages, restart: m.restart }));
+      py.globals.set("report", (done, total) => self.postMessage({ type: "progress", done, total }));
+      py.runPython(\`
+import readezy_core
+out_bytes, out_stats = readezy_core.convert_bytes(
+    bytes(in_bytes.to_py()), list(job["colors"]), style=job["style"],
+    pages=job["pages"] or None, restart_each_page=job["restart"], progress=report)
+\`);
+      const out = py.globals.get("out_bytes").toJs();
+      const stats = py.globals.get("out_stats").toJs({ dict_converter: Object.fromEntries });
+      py.runPython("del in_bytes, out_bytes");
+      self.postMessage({ type: "done", data: out.buffer, stats }, [out.buffer]);
+    }
+  } catch (err) {
+    let msg = String(err && err.message || err);
+    const m2 = msg.match(/ReadEzyError: (.*)/) || msg.match(/ValueError: (.*)/);
+    self.postMessage({ type: "error", message: m2 ? m2[1] : msg });
+  }
+};`;
+
+let worker = null;
+function startWorker() {
+  worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
+  worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === "ready") {
+      state.ready = true; updateButton();
+      setStatus(state.file ? "Ready." : "Ready. Choose a PDF to start.", "ok");
+    } else if (m.type === "progress") {
+      $("bar").max = m.total; $("bar").value = m.done;
+      setStatus(`Colouring page ${m.done} of ${m.total}…`);
+    } else if (m.type === "done") {
+      state.busy = false; updateButton(); $("bar").classList.remove("show");
+      const blob = new Blob([m.data], { type: "application/pdf" });
+      state.outUrl = URL.createObjectURL(blob);
+      const base = state.file.name.replace(/\.pdf$/i, "");
+      const name = `${base}-ReadEzy-${state.theme}.pdf`;
+      $("dl").href = state.outUrl; $("dl").download = name; $("open").href = state.outUrl;
+      $("result").classList.add("show");
+      const s = m.stats;
+      let msg = `Done: ${s.colored.toLocaleString()} characters coloured on ${s.pages} page${s.pages === 1 ? "" : "s"}.`;
+      if (s.skipped_pages) msg += ` ${s.skipped_pages} page(s) couldn't be read and were left unchanged.`;
+      if (s.colored === 0) msg = "Finished, but no text was found to colour. Is this a scanned PDF? Run it through OCR first.";
+      setStatus(msg, s.colored ? "ok" : "err");
+    } else if (m.type === "error") {
+      state.busy = false; updateButton(); $("bar").classList.remove("show");
+      if (!state.ready) {
+        setStatus("The converter couldn't load: " + m.message + ". Check your internet connection and reload the page.", "err");
+      } else {
+        setStatus("Sorry, this PDF couldn't be converted: " + m.message, "err");
+      }
+    }
+  };
+  worker.onerror = e => setStatus("The converter stopped unexpectedly: " + (e.message || "unknown error"), "err");
+  worker.postMessage({
+    type: "init", pyodideUrl: new URL(PYODIDE_URL, location.href).href, core: CORE_SOURCE,
+    wheels: PYPDF_WHEELS.map(u => new URL(u, location.href).href),
+  });
+}
+
+$("go").addEventListener("click", async () => {
+  if (!state.file || !state.ready) return;
+  const pages = $("pages").value.trim();
+  if (pages && !/^[\d\s,\-]+$/.test(pages)) { setStatus("Pages should look like 1-5, 8", "err"); return; }
+  state.busy = true; updateButton(); clearResult();
+  $("bar").value = 0; $("bar").classList.add("show");
+  setStatus("Reading the PDF…");
+  const data = await state.file.arrayBuffer();
+  worker.postMessage({ type: "convert", data, colors: currentColors(), style: state.style,
+                       pages, restart: $("restart").checked }, [data]);
+});
+
+// Opened from a downloaded copy: the "Download this app" link isn't needed
+if (location.protocol === "file:") $("self-dl-row").hidden = true;
+
+if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") {
+  setStatus("This browser can't run the converter. Please use a recent Chrome, Edge, Firefox or Safari.", "err");
+} else {
+  startWorker();
+}
+</script>
+</body>
+</html>

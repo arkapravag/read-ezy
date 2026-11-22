@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ReadEzy</title>
+<meta name="description" content="Colour a PDF's text with line gradients that guide your eye from one line to the next. Runs in your browser; your PDF never leaves your device.">
+<style>
+  :root {
+    --bg: #f6f6f3; --card: #ffffff; --ink: #1b1c20; --ink-soft: #5d6070; --line: #e2e2dc;
+    --accent: #2f4bd8; --accent-ink: #ffffff; --accent-soft: #e8ecff; --ok: #1f7a43; --err: #b3261e;
+    --shadow: 0 1px 2px rgba(20,20,30,.06), 0 4px 16px rgba(20,20,30,.05);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #121317; --card: #1b1d23; --ink: #ecedf1; --ink-soft: #a3a6b4; --line: #2c2f38;
+      --accent: #7d93ff; --accent-ink: #0d1030; --accent-soft: #232a4d; --ok: #63d18f; --err: #ff8a80;
+      --shadow: none; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #121317; --card: #1b1d23; --ink: #ecedf1; --ink-soft: #a3a6b4; --line: #2c2f38;
+    --accent: #7d93ff; --accent-ink: #0d1030; --accent-soft: #232a4d; --ok: #63d18f; --err: #ff8a80;
+    --shadow: none; color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  main { max-width: 860px; margin: 0 auto; padding: 32px 16px 48px; }
+  header h1 { font-size: 2rem; margin: 0 0 4px; letter-spacing: -0.02em; }
+  header h1 .grad { font-weight: 800; }
+  header p { margin: 0; color: var(--ink-soft); }
+  .card {
+    background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+    padding: 20px; margin-top: 18px; box-shadow: var(--shadow);
+  }
+  .card h2 { font-size: 1.05rem; margin: 0 0 12px; display: flex; gap: 10px; align-items: center; }
+  .step {
+    display: inline-grid; place-items: center; width: 26px; height: 26px; border-radius: 50%;
+    background: var(--accent-soft); color: var(--accent); font-size: .85rem; font-weight: 700;
+  }
+  .drop {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+    border: 2px dashed var(--line); border-radius: 12px; padding: 28px 16px; text-align: center;
+    cursor: pointer; transition: border-color .15s, background .15s;
+  }
+  .drop:hover, .drop.over { border-color: var(--accent); background: var(--accent-soft); }
+  .drop:focus-within { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop .big { font-weight: 600; }
+  .drop .small { color: var(--ink-soft); font-size: .9rem; }
+  .file-chosen { margin-top: 10px; font-size: .95rem; color: var(--ink-soft); word-break: break-word; }
+  .file-chosen b { color: var(--ink); }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; margin-bottom: 14px; flex-wrap: wrap; }
+  .seg button {
+    border: 0; background: transparent; color: var(--ink); padding: 8px 14px; font: inherit; cursor: pointer;
+  }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+  .themes { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  @media (max-width: 520px) {
+    .themes { grid-template-columns: 1fr 1fr; gap: 8px; }
+    .theme .sample { font-size: 9.5px; padding: 8px; min-height: 0; }
+  }
+  .theme {
+    border: 2px solid var(--line); border-radius: 12px; padding: 0; background: var(--card);
+    cursor: pointer; text-align: left; font: inherit; color: var(--ink); overflow: hidden;
+  }
+  .theme[aria-checked="true"] { border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .theme:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .theme .sample {
+    font: 12.5px/1.45 Georgia, "Times New Roman", serif; padding: 10px 12px; min-height: 96px;
+    border-bottom: 1px solid var(--line); white-space: nowrap; overflow: hidden;
+  }
+  .theme .name { padding: 8px 12px; font-weight: 600; font-size: .95rem; text-transform: capitalize; }
+  .custom-row { display: none; flex-wrap: wrap; gap: 12px; margin-top: 14px; align-items: end; }
+  .custom-row.show { display: flex; }
+  .custom-row label { display: flex; flex-direction: column; font-size: .8rem; color: var(--ink-soft); gap: 4px; }
+  .custom-row input[type=color] { width: 52px; height: 34px; border: 1px solid var(--line); border-radius: 8px; background: none; padding: 2px; }
+  details { margin-top: 16px; }
+  summary { cursor: pointer; color: var(--ink-soft); }
+  .adv { display: grid; gap: 12px; margin-top: 12px; }
+  .adv label { display: flex; flex-direction: column; gap: 4px; font-size: .9rem; }
+  .adv label.inline { flex-direction: row; align-items: center; gap: 8px; }
+  .adv input[type=text] {
+    font: inherit; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--bg); color: var(--ink); max-width: 260px;
+  }
+  .hint { color: var(--ink-soft); font-size: .85rem; }
+  .go { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+  .btn {
+    font: inherit; font-weight: 600; border: 0; border-radius: 10px; padding: 12px 20px; cursor: pointer;
+    background: var(--accent); color: var(--accent-ink); text-decoration: none; display: inline-block;
+  }
+  .btn[disabled] { opacity: .45; cursor: not-allowed; }
+  .btn.secondary { background: transparent; color: var(--accent); border: 1px solid var(--accent); }
+  .status { color: var(--ink-soft); font-size: .95rem; min-height: 1.5em; }
+  .status.err { color: var(--err); }
+  .status.ok { color: var(--ok); }
+  progress { width: 100%; height: 10px; margin-top: 12px; accent-color: var(--accent); display: none; }
+  progress.show { display: block; }
+  .result { display: none; margin-top: 14px; gap: 12px; flex-wrap: wrap; align-items: center; }
+  .result.show { display: flex; }
+  footer { margin-top: 28px; color: var(--ink-soft); font-size: .88rem; }
+  footer a { color: var(--accent); }
+  footer p { margin: 6px 0; }
+  .sr { position: absolute; left: -9999px; }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1 id="logo">ReadEzy</h1>
+    <p>Colour your PDF's text with line gradients that lead your eye from the end of one line to the start of the next.</p>
+  </header>
+
+  <section class="card" aria-labelledby="h-file">
+    <h2 id="h-file"><span class="step">1</span>Choose a PDF</h2>
+    <label class="drop" id="drop">
+      <input type="file" id="file" accept="application/pdf,.pdf">
+      <span class="big">Drop a PDF here, or click to choose one</span>
+      <span class="small">Your file stays on this device. Nothing is uploaded.</span>
+    </label>
+    <div class="file-chosen" id="chosen" aria-live="polite"></div>
+  </section>
+
+  <section class="card" aria-labelledby="h-theme">
+    <h2 id="h-theme"><span class="step">2</span>Pick a theme</h2>
+    <div class="seg" role="group" aria-label="Colouring style">
+      <button type="button" data-style="pdf" aria-pressed="true">PDF style</button>
+      <button type="button" data-style="web" aria-pressed="false">Web style</button>
+    </div>
+    <div class="themes" id="themes" role="radiogroup" aria-label="Theme"></div>
+    <div class="custom-row" id="custom-row">
+      <label>Colour 1<input type="color" data-ci="0"></label>
+      <label>Colour 2<input type="color" data-ci="1"></label>
+      <label>Colour 3<input type="color" data-ci="2"></label>
+      <label>Colour 4<input type="color" data-ci="3"></label>
+      <label>Background<input type="color" data-ci="4"></label>
+      <span class="hint">Lines fade 1→2, 2→1, 3→4, 4→3. A dark background switches to night mode.</span>
+    </div>
+    <details>
+      <summary>More options</summary>
+      <div class="adv">
+        <label>Pages to colour
+          <input type="text" id="pages" placeholder="All pages, or e.g. 1-5, 8" inputmode="numeric">
+        </label>
+        <label class="inline"><input type="checkbox" id="restart"> Restart the colour pattern on every page</label>
+      </div>
+    </details>
+  </section>
+
+  <section class="card" aria-labelledby="h-go">
+    <h2 id="h-go"><span class="step">3</span>Colour it and download</h2>
+    <div class="go">
+      <button class="btn" id="go" type="button" disabled>Colour my PDF</button>
+      <span class="status" id="status" role="status" aria-live="polite">Loading the converter…</span>
+    </div>
+    <progress id="bar" max="1" value="0"></progress>
+    <div class="result" id="result">
+      <a class="btn" id="dl" href="#" download>Download coloured PDF</a>
+      <a class="btn secondary" id="open" href="#" target="_blank" rel="noopener">Open in a new tab</a>
+    </div>
+  </section>
+
+  <footer>
+    <p>Everything runs in your browser with <a href="https://pyodide.org/">Pyodide</a> and
+       <a href="https://pypdf.readthedocs.io/">pypdf</a>. Text stays selectable and searchable.</p>
+    <p id="self-dl-row"><a href="index.html" id="self-dl" download="ReadEzy.html">Download this app</a> as a single
+       file and open it in your browser any time. It needs an internet connection to load the converter.</p>
+    <p>Source and command-line version: <a href="https://github.com/arkapravag/read-ezy">github.com/arkapravag/read-ezy</a>.</p>
+  </footer>
+</main>
+
+<script>
+"use strict";
+const PYODIDE_URL = "https://cdn.jsdelivr.net/pyodide/v0.29.5/full/";
+const PYPDF_WHEELS = [
+  "pypdf-6.21.4-py3-none-any.whl",
+  "https://files.pythonhosted.org/packages/3f/4b/77e8ad4ac42c9d93600f40541a50e9feb3a61d2bbee2d76f659346072051/pypdf-6.21.4-py3-none-any.whl",
+];
+const CORE_SOURCE = /*__READEZY_CORE__*/"";
+
+const STYLES = {
+  pdf: {
+    bright:   ["#000000", "#0000FF", "#000000", "#FF0500", "#FFFFFF"],
+    dark:     ["#000000", "#00057F", "#000000", "#970000", "#FFFFFF"],
+    blues:    ["#000000", "#0000FF", "#000000", "#840DD2", "#FFFFFF"],
+    gray:     ["#000000", "#666666", "#000000", "#666666", "#FFFFFF"],
+    inverted: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+  },
+  web: {
+    bright:      ["#000000", "#0419ff", "#000000", "#b10202", "#FBFBFB"],
+    dark:        ["#000000", "#000676", "#000000", "#5e0200", "#FBFBFB"],
+    blues:       ["#000000", "#0000FF", "#000000", "#840DD2", "#FBFBFB"],
+    gray:        ["#000000", "#666666", "#000000", "#666666", "#FBFBFB"],
+    night_gray:  ["#FBFBFB", "#666666", "#FBFBFB", "#666666", "#000000"],
+    night_blues: ["#FBFBFB", "#56AAFF", "#FBFBFB", "#9E8DFC", "#000000"],
+  },
+};
+const SAMPLE = [
+  "Gradient lines guide the eye",
+  "from the end of one line to",
+  "the start of the next, so it",
+  "is easier to keep your place",
+  "while reading long text.",
+];
+
+// ---- colour maths (same as readezy_core.gradient_color) ----
+const hexRgb = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+function gradientColor(phase, x, xmin, xmax, theme) {
+  const [c1, c2, c3, c4] = theme.map(hexRgb);
+  const [s, e] = phase < 2 ? [c1, c2] : [c3, c4];
+  if (xmax === xmin) return null;
+  const k = Math.PI / (xmax - xmin) * (x - xmin);
+  const v = phase % 2 === 0 ? (Math.cos(k - Math.PI) + 1) / 2 : (Math.cos(k) + 1) / 2;
+  return "rgb(" + s.map((a, i) => Math.floor((e[i] - a) * v + a + 0.5)).join(",") + ")";
+}
+function paintSample(el, theme, lines = SAMPLE) {
+  el.textContent = "";
+  el.style.background = theme[4];
+  lines.forEach((line, li) => {
+    const row = document.createElement("div");
+    for (let i = 0; i < line.length; i++) {
+      const span = document.createElement("span");
+      span.textContent = line[i];
+      span.style.color = gradientColor(li % 4, i, 0, Math.max(line.length - 1, 1) , theme) || theme[0];
+      row.appendChild(span);
+    }
+    el.appendChild(row);
+  });
+}
+
+// ---- state ----
+const $ = id => document.getElementById(id);
+const state = { style: "pdf", theme: "bright", custom: STYLES.pdf.bright.slice(), file: null,
+                ready: false, busy: false, outUrl: null };
+
+function currentColors() {
+  return state.theme === "custom" ? state.custom.slice() : STYLES[state.style][state.theme];
+}
+
+function renderThemes() {
+  const box = $("themes");
+  box.textContent = "";
+  const names = [...Object.keys(STYLES[state.style]), "custom"];
+  if (!names.includes(state.theme)) state.theme = "bright";
+  for (const name of names) {
+    const colors = name === "custom" ? state.custom : STYLES[state.style][name];
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "theme"; b.setAttribute("role", "radio");
+    b.setAttribute("aria-checked", String(name === state.theme));
+    b.dataset.theme = name;
+    const sample = document.createElement("div"); sample.className = "sample";
+    paintSample(sample, colors);
+    const label = document.createElement("div"); label.className = "name";
+    label.textContent = name.replace("_", " ");
+    b.append(sample, label);
+    b.addEventListener("click", () => { state.theme = name; renderThemes(); });
+    box.appendChild(b);
+  }
+  $("custom-row").classList.toggle("show", state.theme === "custom");
+}
+
+document.querySelectorAll(".seg button").forEach(btn => btn.addEventListener("click", () => {
+  state.style = btn.dataset.style;
+  document.querySelectorAll(".seg button").forEach(b => b.setAttribute("aria-pressed", String(b === btn)));
+  $("restart").checked = state.style === "pdf";
+  renderThemes();
+}));
+document.querySelectorAll(".custom-row input[type=color]").forEach(inp => {
+  inp.value = state.custom[+inp.dataset.ci].toLowerCase();
+  inp.addEventListener("input", () => { state.custom[+inp.dataset.ci] = inp.value; renderThemes(); });
+});
+$("restart").checked = true;
+paintSample($("logo"), ["#3b5bff", "#ff3b30", "#3b5bff", "#ff3b30", "transparent"], ["ReadEzy"]);
+renderThemes();
+
+// ---- file picking ----
+function setFile(f) {
+  if (!f) return;
+  if (!/\.pdf$/i.test(f.name) && f.type !== "application/pdf") {
+    setStatus("That doesn't look like a PDF. Please choose a .pdf file.", "err"); return;
+  }
+  state.file = f;
+  const mb = (f.size / 1048576).toFixed(f.size > 10485760 ? 0 : 1);
+  $("chosen").innerHTML = "";
+  const b = document.createElement("b"); b.textContent = f.name;
+  $("chosen").append("Selected: ", b, ` (${mb} MB)`);
+  clearResult(); updateButton();
+}
+$("file").addEventListener("change", e => setFile(e.target.files[0]));
+const drop = $("drop");
+["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => setFile(e.dataTransfer.files[0]));
+
+function setStatus(text, kind = "") { const s = $("status"); s.textContent = text; s.className = "status " + kind; }
+function updateButton() { $("go").disabled = !(state.ready && state.file && !state.busy); }
+function clearResult() {
+  $("result").classList.remove("show");
+  if (state.outUrl) { URL.revokeObjectURL(state.outUrl); state.outUrl = null; }
+}
+
+// ---- worker running Pyodide ----
+const WORKER_SRC = `
+let py = null;
+async function init(cfg) {
+  importScripts(cfg.pyodideUrl + "pyodide.js");
+  py = await loadPyodide({ indexURL: cfg.pyodideUrl });
+  let wheel = null, lastErr = "";
+  for (const u of cfg.wheels) {
+    try { const r = await fetch(u); if (r.ok) { wheel = await r.arrayBuffer(); break; } lastErr = r.status; }
+    catch (e) { lastErr = e.message; }
+  }
+  if (!wheel) throw new Error("could not download pypdf (" + lastErr + ")");
+  py.FS.mkdirTree("/home/pyodide/lib");
+  py.unpackArchive(wheel, "zip", { extractDir: "/home/pyodide/lib" });
+  py.FS.writeFile("/home/pyodide/lib/readezy_core.py", cfg.core);
+  py.runPython("import sys; sys.path.insert(0, '/home/pyodide/lib'); import readezy_core");
+}
+self.onmessage = async (e) => {
+  const m = e.data;
+  try {
+    if (m.type === "init") { await init(m); self.postMessage({ type: "ready" }); return; }
+    if (m.type === "convert") {
+      py.globals.set("in_bytes", new Uint8Array(m.data));
+      py.globals.set("job", py.toPy({ colors: m.colors, style: m.style, pages: m.pages, restart: m.restart }));
+      py.globals.set("report", (done, total) => self.postMessage({ type: "progress", done, total }));
+      py.runPython(\`
+import readezy_core
+out_bytes, out_stats = readezy_core.convert_bytes(
+    bytes(in_bytes.to_py()), list(job["colors"]), style=job["style"],
+    pages=job["pages"] or None, restart_each_page=job["restart"], progress=report)
+\`);
+      const out = py.globals.get("out_bytes").toJs();
+      const stats = py.globals.get("out_stats").toJs({ dict_converter: Object.fromEntries });
+      py.runPython("del in_bytes, out_bytes");
+      self.postMessage({ type: "done", data: out.buffer, stats }, [out.buffer]);
+    }
+  } catch (err) {
+    let msg = String(err && err.message || err);
+    const m2 = msg.match(/ReadEzyError: (.*)/) || msg.match(/ValueError: (.*)/);
+    self.postMessage({ type: "error", message: m2 ? m2[1] : msg });
+  }
+};`;
+
+let worker = null;
+function startWorker() {
+  worker = new Worker(URL.createObjectURL(new Blob([WORKER_SRC], { type: "text/javascript" })));
+  worker.onmessage = e => {
+    const m = e.data;
+    if (m.type === "ready") {
+      state.ready = true; updateButton();
+      setStatus(state.file ? "Ready." : "Ready. Choose a PDF to start.", "ok");
+    } else if (m.type === "progress") {
+      $("bar").max = m.total; $("bar").value = m.done;
+      setStatus(`Colouring page ${m.done} of ${m.total}…`);
+    } else if (m.type === "done") {
+      state.busy = false; updateButton(); $("bar").classList.remove("show");
+      const blob = new Blob([m.data], { type: "application/pdf" });
+      state.outUrl = URL.createObjectURL(blob);
+      const base = state.file.name.replace(/\.pdf$/i, "");
+      const name = `${base}-ReadEzy-${state.theme}.pdf`;
+      $("dl").href = state.outUrl; $("dl").download = name; $("open").href = state.outUrl;
+      $("result").classList.add("show");
+      const s = m.stats;
+      let msg = `Done: ${s.colored.toLocaleString()} characters coloured on ${s.pages} page${s.pages === 1 ? "" : "s"}.`;
+      if (s.skipped_pages) msg += ` ${s.skipped_pages} page(s) couldn't be read and were left unchanged.`;
+      if (s.colored === 0) msg = "Finished, but no text was found to colour. Is this a scanned PDF? Run it through OCR first.";
+      setStatus(msg, s.colored ? "ok" : "err");
+    } else if (m.type === "error") {
+      state.busy = false; updateButton(); $("bar").classList.remove("show");
+      if (!state.ready) {
+        setStatus("The converter couldn't load: " + m.message + ". Check your internet connection and reload the page.", "err");
+      } else {
+        setStatus("Sorry, this PDF couldn't be converted: " + m.message, "err");
+      }
+    }
+  };
+  worker.onerror = e => setStatus("The converter stopped unexpectedly: " + (e.message || "unknown error"), "err");
+  worker.postMessage({
+    type: "init", pyodideUrl: new URL(PYODIDE_URL, location.href).href, core: CORE_SOURCE,
+    wheels: PYPDF_WHEELS.map(u => new URL(u, location.href).href),
+  });
+}
+
+$("go").addEventListener("click", async () => {
+  if (!state.file || !state.ready) return;
+  const pages = $("pages").value.trim();
+  if (pages && !/^[\d\s,\-]+$/.test(pages)) { setStatus("Pages should look like 1-5, 8", "err"); return; }
+  state.busy = true; updateButton(); clearResult();
+  $("bar").value = 0; $("bar").classList.add("show");
+  setStatus("Reading the PDF…");
+  const data = await state.file.arrayBuffer();
+  worker.postMessage({ type: "convert", data, colors: currentColors(), style: state.style,
+                       pages, restart: $("restart").checked }, [data]);
+});
+
+// Opened from a downloaded copy: the "Download this app" link isn't needed
+if (location.protocol === "file:") $("self-dl-row").hidden = true;
+
+if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") {
+  setStatus("This browser can't run the converter. Please use a recent Chrome, Edge, Firefox or Safari.", "err");
+} else {
+  startWorker();
+}
+</script>
+</body>
+</html>
